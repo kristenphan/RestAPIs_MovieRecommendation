@@ -1,0 +1,92 @@
+import requests_with_caching
+import json
+import sys
+
+
+# this function takes a movie title
+# and return a dictionary containing 5 related movies from tastedive
+# Tastedive API documentation: https://tastedive.com/read/api
+def get_movies_from_tastedive(title):
+    d = {}
+    d['q'] = title
+    d['type'] = 'movies'
+    d['limit'] = '5'
+    baseurl = 'https://tastedive.com/api/similar'
+    resp = requests_with_caching.get(baseurl, params = d)
+    return resp.json()
+
+# this functions takes a dictionary containing 5 related movies
+# and returns a list of the movie tiles extracted from the dict
+def extract_movie_titles(tastedive_d):
+    related_movies = []
+    for i in range(len(tastedive_d['Similar']['Results'])):
+        related_movie = tastedive_d['Similar']['Results'][i]['Name']
+        if related_movie not in related_movies:
+            related_movies.append(related_movie)
+    
+    return related_movies
+
+# this function takes a list of movie titles as input
+# it gets five related movies for each from TasteDive, 
+# extracts the titles for all of them, 
+# and combines them all into a single list. Don’t include the same movie twice.
+def get_related_titles(movies_lst):
+    if len(movies_lst) == 0 :
+        return []
+    results = []
+    for movie in movies_lst:
+        resp_dict = get_movies_from_tastedive(movie)
+        related_movies = extract_movie_titles(resp_dict)
+        for related_movie in related_movies:
+            if related_movie not in results:
+                results.append(related_movie)
+     
+    return results
+     
+# this functions takes in a movie title
+# and returns a dict containing info about that movie
+# OMDB API documentation: http://www.omdbapi.com/
+def get_movie_data(title):
+    baseurl = "http://www.omdbapi.com/"
+    d = {}
+    d['t'] = title
+    d['r'] = 'json'
+    resp = requests_with_caching.get(baseurl, params = d)
+    print(resp.json())
+
+    return resp.json()
+
+# this function takes a dictionary containing info about a specific movie,
+# extracts, and returns the Rotten Tomatos rating of that movie
+# if no Rotten Tomatoes rating is available, return 0
+def get_movie_rating(movie_data):
+    rating = 0
+    for i in range(len(movie_data['Ratings'])):
+        if movie_data['Ratings'][i]['Source'] == 'Rotten Tomatoes': 
+            rating = int(movie_data['Ratings'][i]['Value'].strip("%"))
+        
+    return rating
+
+# this function takes a list of movie titles as an input
+# and returns a sorted list of related movie titles as output, 
+# up to five related movies for each input movie title.
+# The movies should be sorted in descending order by their Rotten Tomatoes rating, 
+# as returned by the get_movie_rating function. 
+# Break ties in reverse alphabetic order, so that ‘Yahşi Batı’ comes before ‘Eyyvah Eyvah’.
+def get_sorted_recommendations(movies_lst):	
+	movies_d = {}	
+	related_titles = get_related_titles(movies_lst)
+	for movie in related_titles:
+		rating = get_movie_rating(get_movie_data(movie))
+		movies_d[movie] = rating
+	
+	sorted_movies_d = sorted(movies_d, key=lambda m:(movies_d[m],m), reverse = True)
+	
+	print(sorted_movies_d)
+	return sorted_movies_d 
+		
+
+
+# test case
+get_sorted_recommendations(["Bridesmaids", "Sherlock Holmes"])
+
